@@ -1,0 +1,2 @@
+# Place this line in /etc/rc.local to run at startup.
+sudo -u mapenn /home/mapenn/autofans/startfans.sh &
