@@ -3,9 +3,6 @@
 Control fan speeds on a Raspberry Pi based on temperature readings from an
 MCP9808 sensor, driving an EMC2101 fan controller over I2C.
 
-This project targets a Raspberry Pi (the "target system"); it is not meant
-to run on the development machine used to write/edit it.
-
 ## Setup (on the Raspberry Pi)
 
 These steps assume a fresh Raspberry Pi OS install with the MCP9808
@@ -70,3 +67,8 @@ following line to `/etc/rc.local`, replacing `user` with your own username:
 ```
 sudo -u user /home/user/autofans/startfans.sh &
 ```
+
+Based on the location of the temperature sensor, adjustments to the autofans.py 
+fan control temperature and fan speed settings will be needed.  I'm currently 
+using this to control two noctula 5v fans running in an open rack.  The temperature
+sensor is installed on top of my fanless firewall case, which is a large heatsink.
