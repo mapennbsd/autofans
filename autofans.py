@@ -3,9 +3,15 @@
 import time
 import board
 import sys
+import argparse
 import datetime
 from adafruit_emc2101 import EMC2101
 import adafruit_mcp9808
+
+parser = argparse.ArgumentParser(description="Monitor temperature and control fan speed.")
+parser.add_argument("--check", action="store_true",
+                     help="print the current fan speed and exit, without running the control loop")
+args = parser.parse_args()
 
 i2c = board.I2C()  # uses board.SCL and board.SDA
 
@@ -19,6 +25,9 @@ mcp = adafruit_mcp9808.MCP9808(i2c)
 # mcp = adafruit_mcp9808.MCP9808(i2c_bus, address=0x19)
 
 print("Current Fan speed", emc.fan_speed, flush=True)
+
+if args.check:
+    sys.exit(0)
 
 speed = 100
 
