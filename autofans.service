@@ -1,0 +1,18 @@
+[Unit]
+Description=Temperature-controlled network rack fans
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=autofans
+SupplementaryGroups=i2c
+WorkingDirectory=/opt/autofans
+ExecStart=/opt/autofans/.venv/bin/python /opt/autofans/autofans.py
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

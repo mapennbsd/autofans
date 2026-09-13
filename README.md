@@ -1,74 +1,139 @@
 # autofans
 
-Control fan speeds on a Raspberry Pi based on temperature readings from an
-MCP9808 sensor, driving an EMC2101 fan controller over I2C.
+Version **1.1.0** — see [release notes](CHANGELOG.md).
 
-## Setup (on the Raspberry Pi)
+Controls network rack fans on the Raspberry Pi **dawg**, reading an MCP9808
+sensor and driving an EMC2101 controller over I2C. **spaceghost** is the
+workstation for editing and running tests; do not install the service there.
 
-These steps assume a fresh Raspberry Pi OS install with the MCP9808
-temperature sensor and EMC2101 fan controller already wired to the Pi's I2C
-pins.
+## Control behavior
 
-1. Update the system and install prerequisites:
+The controller is commanded to 100% before the temperature sensor is initialized.
+A valid temperature then selects the fan setting. Readings are taken every 60
+seconds. Routine logs are emitted only when the commanded PWM changes, with
+temperature, previous/new PWM, and RPM immediately after the command (before
+the fan settles). Startup, errors, and recovery are always logged. After an hour
+without a speed-change or recovery log, a heartbeat reports temperature, PWM,
+and RPM. Sensor and RPM checks still run every minute. These thresholds preserve the original integer-truncated behavior:
 
-   ```
+| Temperature (°F) | Fan PWM |
+| --- | --- |
+| Below 75 | 25% |
+| 75 to below 81 | 50% |
+| 81 to below 83 | 60% |
+| 83 to below 85 | 70% |
+| 85 to below 87 | 80% |
+| 87 to below 89 | 90% |
+| 89 and above | 100% |
+
+Speed increases at the listed thresholds. While cooling, speed decreases only
+below the relevant threshold minus 1°F. For example, 50% drops to 25% below
+74°F. Large temperature drops can cross multiple bands in one sample. The first
+valid reading after startup or a failure uses the table without hysteresis.
+
+Temperature, RPM, or PWM access errors are logged and trigger an attempt to
+command 100%, followed by another attempt after 60 seconds. RPM is read after
+the temperature-based command so logging cannot prevent that command. If the
+controller is unreachable, software cannot guarantee the actual fan setting.
+Initialization failures exit so systemd can restart the process after 10 seconds.
+
+The current installation uses two Noctua 5V fans in an open rack, with the
+sensor on the heatsink case of a fanless firewall. Tune `THRESHOLDS_F`, `SPEEDS`,
+and `HYSTERESIS_F` in `autofans.py` to suit the sensor location.
+
+## Install on dawg
+
+Copy this repository to dawg first. Run the following commands there from the
+repository directory. The service uses `/opt/autofans` and a dedicated account.
+
+1. Install prerequisites and enable I2C:
+
+   ```sh
    sudo apt update
-   sudo apt upgrade
-   sudo apt install vim python3-pip i2c-tools
+   sudo apt install python3-venv python3-pip i2c-tools
+   sudo raspi-config
    ```
 
-   (`vim` is optional — use whatever editor you prefer.)
+   Select **Interface Options → I2C**, enable it, and reboot if prompted.
+   Check the wiring and device visibility with `i2cdetect -y 1`.
 
-2. Install the Python drivers for the two sensor/controller boards:
+2. Create a service account (once) and install the program and drivers:
 
-   ```
-   pip3 install adafruit-circuitpython-emc2101 adafruit-circuitpython-mcp9808
-   ```
-
-3. Enable the I2C interface. Run `sudo raspi-config`, then go to
-   **Interface Options → I2C** and enable it. Reboot if prompted.
-
-4. Confirm the devices are visible on the I2C bus:
-
-   ```
-   i2cdetect -y 1
+   ```sh
+   sudo useradd --system --no-create-home --shell /usr/sbin/nologin autofans
+   sudo install -d -m 755 /opt/autofans
+   sudo install -m 644 autofans.py /opt/autofans/autofans.py
+   sudo python3 -m venv /opt/autofans/.venv
+   sudo /opt/autofans/.venv/bin/pip install adafruit-circuitpython-emc2101 adafruit-circuitpython-mcp9808
    ```
 
-   You should see two addresses show up in the grid — one for the MCP9808
-   sensor and one for the EMC2101 fan controller. If nothing appears, double
-   check the wiring and that I2C was actually enabled in step 3.
+   The service grants the `i2c` supplementary group. Confirm that this group has
+   access to dawg's `/dev/i2c-*` device before starting the service.
 
-   Some Pi models expose I2C on bus 2 instead of (or in addition to) bus 1;
-   if bus 1 comes back empty, also try:
+3. Migrate the old startup method before enabling the new service:
 
+   Remove the old `startfans.sh` entry from `/etc/rc.local` and any equivalent
+   cron startup entries. Find existing controllers with:
+
+   ```sh
+   pgrep -af '[a]utofans.py'
    ```
-   i2cdetect -y 2
+
+   Stop the identified old control process using `sudo kill <PID>`. Check the
+   command line before selecting the PID; do not rely on an old PID file.
+   Perform the next step promptly to resume temperature control.
+
+4. Install and enable the service:
+
+   ```sh
+   sudo install -m 644 autofans.service /etc/systemd/system/autofans.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now autofans.service
+   sudo systemctl status autofans.service
+   sudo journalctl -u autofans.service -n 30 --no-pager
    ```
 
-## Usage
+   Confirm successful temperature readings and physically verify fan operation.
+   Systemd manages one service process, restarts it after failure, and captures
+   logs in the journal. Avoid launching additional control loops manually.
+   `startfans.sh` is now a compatibility wrapper for
+   `sudo systemctl start autofans.service`; repeated starts use the same service.
 
-Run the control loop:
+## Operation on dawg
 
+```sh
+sudo systemctl restart autofans.service
+sudo systemctl stop autofans.service
+sudo journalctl -u autofans.service -f
 ```
-./autofans.py
+
+Stopping the service stops temperature adjustments; it does not command a new
+fan setting. A successful service start alone does not confirm sensor health:
+check the journal for readings and errors.
+
+Read current RPM without starting a control loop or initializing the MCP9808:
+
+```sh
+sudo /opt/autofans/.venv/bin/python /opt/autofans/autofans.py --check
 ```
 
-Check the current fan speed and exit, without starting the control loop:
+For updates, copy the revised Python file into `/opt/autofans` using the install
+command above, then restart the service. Reinstall the unit and run
+`systemctl daemon-reload` if the service definition changes.
 
+If startup fails, inspect `systemctl status` and the journal. Check driver
+installation in `/opt/autofans/.venv`, I2C enablement, permissions, board power,
+and wiring. Repeated full-speed errors require checking the controller itself.
+
+## Local tests on spaceghost
+
+No hardware drivers or Raspberry Pi access are needed:
+
+```sh
+python3 -m unittest discover -s tests -v
+sh -n startfans.sh
 ```
-./autofans.py --check
-```
 
-## Running at startup
-
-To start `autofans.py` automatically at boot via `/etc/rc.local`, add the
-following line to `/etc/rc.local`, replacing `user` with your own username:
-
-```
-sudo -u user /home/user/autofans/startfans.sh &
-```
-
-Based on the location of the temperature sensor, adjustments to the autofans.py 
-fan control temperature and fan speed settings will be needed.  I'm currently 
-using this to control two noctula 5v fans running in an open rack.  The temperature
-sensor is installed on top of my fanless firewall case, which is a large heatsink.
+Tests cover startup, every temperature boundary, hysteresis, invalid readings,
+and simulated sensor, controller, and tachometer failures. Hardware validation
+and service installation must take place separately on dawg.
