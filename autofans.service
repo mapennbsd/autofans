@@ -5,8 +5,14 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 User=autofans
-SupplementaryGroups=i2c
+# i2c for /dev/i2c-1; gpio because Blinka's RPi.GPIO (apt's rpi-lgpio shim)
+# opens /dev/gpiochip0 when board is imported.
+SupplementaryGroups=i2c gpio
 WorkingDirectory=/opt/autofans
+# lgpio makes a notify FIFO (.lgd-nfy*) in its working directory on import,
+# and ProtectSystem=strict leaves /opt read-only.  LG_WD moves it.
+RuntimeDirectory=autofans
+Environment=LG_WD=/run/autofans
 ExecStart=/opt/autofans/.venv/bin/python /opt/autofans/autofans.py
 Restart=always
 RestartSec=10

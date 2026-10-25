@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 — 2026-10-25
+
+- Rebuild for dawg on Debian 13 trixie (arm64, Python 3.13).
+- Add `requirements.txt`: current drivers (Blinka 9.2.0, EMC2101 1.2.15,
+  MCP9808 3.3.32) pinned with PyPI hashes, installed `--no-deps` into a venv
+  with `--system-site-packages`. `RPi.GPIO` comes from apt's
+  `python3-rpi-lgpio`, so nothing compiles.
+- Service: add the `gpio` group (rpi-lgpio opens `/dev/gpiochip0`), and a
+  runtime directory for lgpio's notify FIFO via `LG_WD` (`/opt` is read-only
+  under `ProtectSystem=strict`).
+- Install is now the ansible repo's `dawg.yaml`; the README's manual steps
+  are replaced by it.
+- No change to the control program.
+
 ## 1.1.0 — 2026-09-13
 
 - Command full fan speed before temperature sensor initialization, fixing hot startup.

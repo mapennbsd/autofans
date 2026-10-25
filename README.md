@@ -1,6 +1,6 @@
 # autofans
 
-Version **1.1.0** — see [release notes](CHANGELOG.md).
+Version **1.2.0** — see [release notes](CHANGELOG.md).
 
 Controls network rack fans on the Raspberry Pi **dawg**, reading an MCP9808
 sensor and driving an EMC2101 controller over I2C. **spaceghost** is the
@@ -43,63 +43,38 @@ and `HYSTERESIS_F` in `autofans.py` to suit the sensor location.
 
 ## Install on dawg
 
-Copy this repository to dawg first. Run the following commands there from the
-repository directory. The service uses `/opt/autofans` and a dedicated account.
+dawg is built by `dawg.yaml` in the ansible repo, which is the runbook:
 
-1. Install prerequisites and enable I2C:
+```sh
+./play.sh dawg.yaml --check --diff -K
+./play.sh dawg.yaml -K
+```
 
-   ```sh
-   sudo apt update
-   sudo apt install python3-venv python3-pip i2c-tools
-   sudo raspi-config
-   ```
+It enables I2C (`raspi-config nonint do_i2c 0`), installs `i2c-tools`,
+`python3-venv` and `python3-rpi-lgpio` from apt, creates the `autofans` system
+account, checks out a pinned commit of this repository into `/opt/autofans`,
+builds `/opt/autofans/.venv` with `--system-site-packages`, installs
+`requirements.txt` there (wheels only, every hash required, PyPI only), runs
+the tests, and installs and starts `autofans.service`.
 
-   Select **Interface Options → I2C**, enable it, and reboot if prompted.
-   Check the wiring and device visibility with `i2cdetect -y 1`.
+Why a venv that sees the system packages: Debian 13 marks the system Python
+externally managed (PEP 668), and Blinka on a Pi 3 imports `RPi.GPIO`. PyPI's
+RPi.GPIO and lgpio have no wheels for this platform and would compile, so
+`RPi.GPIO` comes from apt (`python3-rpi-lgpio`, a shim over `python3-lgpio`)
+and everything else from the pinned wheels. See `requirements.txt`.
 
-2. Create a service account (once) and install the program and drivers:
+Check the wiring and device visibility with `i2cdetect -y 1`: the MCP9808 is
+usually at 0x18 and the EMC2101 at 0x4c. Then confirm readings in the journal
+and physically verify fan operation.
 
-   ```sh
-   sudo useradd --system --no-create-home --shell /usr/sbin/nologin autofans
-   sudo install -d -m 755 /opt/autofans
-   sudo install -m 644 autofans.py /opt/autofans/autofans.py
-   sudo python3 -m venv /opt/autofans/.venv
-   sudo /opt/autofans/.venv/bin/pip install adafruit-circuitpython-emc2101 adafruit-circuitpython-mcp9808
-   ```
-
-   The service grants the `i2c` supplementary group. Confirm that this group has
-   access to dawg's `/dev/i2c-*` device before starting the service.
-
-3. Migrate the old startup method before enabling the new service:
-
-   Remove the old `startfans.sh` entry from `/etc/rc.local` and any equivalent
-   cron startup entries. Find existing controllers with:
-
-   ```sh
-   pgrep -af '[a]utofans.py'
-   ```
-
-   Stop the identified old control process using `sudo kill <PID>`. Check the
-   command line before selecting the PID; do not rely on an old PID file.
-   Perform the next step promptly to resume temperature control.
-
-4. Install and enable the service:
-
-   ```sh
-   sudo install -m 644 autofans.service /etc/systemd/system/autofans.service
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now autofans.service
-   sudo systemctl status autofans.service
-   sudo journalctl -u autofans.service -n 30 --no-pager
-   ```
-
-   Confirm successful temperature readings and physically verify fan operation.
-   Systemd manages one service process, restarts it after failure, and captures
-   logs in the journal. Avoid launching additional control loops manually.
-   `startfans.sh` is now a compatibility wrapper for
-   `sudo systemctl start autofans.service`; repeated starts use the same service.
+To deploy a change here: commit and push it, set `autofans_version` in
+`dawg.yaml` to the new commit, and run the playbook. It restarts the service
+when the program or unit changes.
 
 ## Operation on dawg
+
+`startfans.sh` is only a wrapper for `sudo systemctl start autofans.service`,
+kept for old habits; nothing calls it.
 
 ```sh
 sudo systemctl restart autofans.service
@@ -117,9 +92,7 @@ Read current RPM without starting a control loop or initializing the MCP9808:
 sudo /opt/autofans/.venv/bin/python /opt/autofans/autofans.py --check
 ```
 
-For updates, copy the revised Python file into `/opt/autofans` using the install
-command above, then restart the service. Reinstall the unit and run
-`systemctl daemon-reload` if the service definition changes.
+For updates, see "To deploy a change here" above.
 
 If startup fails, inspect `systemctl status` and the journal. Check driver
 installation in `/opt/autofans/.venv`, I2C enablement, permissions, board power,

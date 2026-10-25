@@ -1,0 +1,37 @@
+# Python drivers for dawg (Raspberry Pi 3 B, Debian 13 trixie, Python 3.13,
+# arm64), pinned with PyPI's sha256 for each wheel.  Install into a venv made
+# with --system-site-packages:
+#
+#   PIP_CONFIG_FILE=/dev/null /opt/autofans/.venv/bin/pip install --no-deps \
+#       --require-hashes --only-binary :all: \
+#       --index-url https://pypi.org/simple -r requirements.txt
+#
+# --no-deps on purpose.  On arm64, Blinka also requires RPi.GPIO, lgpio,
+# rpi_ws281x and Adafruit-Blinka-Raspberry-Pi5-Neopixel, which are source-only
+# on PyPI and would compile.  This program uses only board.I2C(), and Blinka
+# imports RPi.GPIO for every Pi 3 pin, so the RPi.GPIO module comes from apt
+# instead: python3-rpi-lgpio, a shim over python3-lgpio.  `pip check` will
+# report those four as missing; that is expected.
+#
+# PIP_CONFIG_FILE=/dev/null drops Pi OS's piwheels extra index: piwheels
+# rebuilds wheels, so their hashes would not match these.
+#
+# Generated 2026-10-25 on dawg; the hashes were checked against PyPI's JSON
+# API.  To update, resolve in a plain venv (no --system-site-packages),
+# download the wheels from PyPI, and hash them again.
+adafruit_blinka==9.2.0 --hash=sha256:ba761bd1eb5fd7c6626e2505dd7e63b0df9b7859eea91d952aba4ee2bec83ee9
+adafruit_circuitpython_busdevice==5.2.17 --hash=sha256:5a834fbe0b88b07d20494bec566815da154aa4b1b668e2e665277b34b3578e44
+adafruit_circuitpython_connectionmanager==3.1.8 --hash=sha256:f93e27874a840f728b5cdbb1bcf0aee4e75ed1c0ba46b4562606ac3ac3ea2cca
+adafruit_circuitpython_emc2101==1.2.15 --hash=sha256:324438328cd51e11efddd5b1132a3fd5a3298d5cea8b53dbc7025b4c6eef5654
+adafruit_circuitpython_mcp9808==3.3.32 --hash=sha256:93a3aedaa6d65f7c341546c878646645202b905879fce4ce75fa10536327187d
+adafruit_circuitpython_register==1.13.0 --hash=sha256:fba55bf5d2cde3af77b7a8f9d7d97a6dc08697cff0d5977edadf83b90745066d
+adafruit_circuitpython_requests==4.1.17 --hash=sha256:4c205188a052f52b3bb8ab4af97798d7d56ae3701857d31f03b164f029fae44f
+adafruit_circuitpython_typing==1.13.0 --hash=sha256:6bfb25ae818a81d569a0048a179815f5944b846edf8f3a2043a84622d8610434
+adafruit_platformdetect==3.89.1 --hash=sha256:d13c206dc37e399cccda953be9b1d3709c549d05be484b1c2da8077043c0beab
+adafruit_pureio==1.1.12 --hash=sha256:9904fb9519bca14e6c8dcb83913244258977c7e946dd0210de1041fc0bc97f3d
+binho_host_adapter==0.1.6 --hash=sha256:f71ca176c1e2fc1a5dce128beb286da217555c6c7c805f2ed282a6f3507ec277
+pyftdi==0.57.2 --hash=sha256:dec3acdc262594d8b1850a6aee608b861c2973f90011faf5cccae3107d3c67a4
+pyserial==3.5 --hash=sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0
+pyusb==1.3.1 --hash=sha256:bf9b754557af4717fe80c2b07cc2b923a9151f5c08d17bdb5345dac09d6a0430
+sysv_ipc==1.2.0 --hash=sha256:977f0e313c2e663000f0c316682ea2c3f6d2f86bbbdb1bcd274fea244a211df0
+typing_extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
