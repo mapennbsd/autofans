@@ -57,3 +57,34 @@ The pre-update script is backed up on dawg at
 sudo cp /var/backups/autofans-pre-logging/autofans.py /opt/autofans/autofans.py
 sudo systemctl restart autofans.service
 ```
+
+# dawg rebuild on Debian 13 trixie — 2026-10-25
+
+dawg's card was reimaged from Raspbian 11 (armv7l, Python 3.9) to Debian 13
+trixie (arm64, Python 3.13). The old card's `/opt/autofans`, its venv and
+`/var/backups` were not saved, so the 2026-09-13 install above is history; the
+rollback steps in it no longer apply.
+
+Installed v1.2.0 (f71937f) with the ansible repo's `dawg.yaml`, which is now
+the rebuild runbook: I2C enabled with `raspi-config nonint do_i2c 0` (live, no
+reboot), `/opt/autofans` a checkout of that commit, the venv built with
+`--system-site-packages`, and `requirements.txt` installed `--no-deps` with
+every hash required. The service runs as `autofans` with `i2c` and `gpio`;
+lgpio's notify FIFO is in `/run/autofans`.
+
+`i2cdetect -y 1` shows the MCP9808 at 0x18 and the EMC2101 at 0x4c. The
+service started at 09:18:22 and commanded 100%. The first two samples were at
+or above 88°F, so it stayed at 100% without logging; then:
+
+```
+09:20:22 Speed change: temperature 86.34 F; PWM 100% -> 90%; RPM 1427.44
+09:21:22 Speed change: temperature 85.78 F; PWM 90% -> 80%; RPM 1308.46
+```
+
+Fans heard running. A direct register read of the MCP9808 agreed (30.50°C,
+86.9°F at 09:19:50). I2C (`dtparam=i2c_arm=on`, `i2c-dev` in `/etc/modules`)
+and the service are enabled for boot; no reboot was performed.
+
+A start that logs only "Fan control started" is normal when the first reading
+is 89°F or more: nothing is logged until the speed changes or the hourly
+heartbeat.
