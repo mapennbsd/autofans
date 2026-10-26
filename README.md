@@ -1,6 +1,6 @@
 # autofans
 
-Version **1.2.0** — see [release notes](CHANGELOG.md).
+Version **1.3.0** — see [release notes](CHANGELOG.md).
 
 Controls network rack fans on the Raspberry Pi **dawg**, reading an MCP9808
 sensor and driving an EMC2101 controller over I2C. **spaceghost** is the
@@ -36,6 +36,18 @@ command 100%, followed by another attempt after 60 seconds. RPM is read after
 the temperature-based command so logging cannot prevent that command. If the
 controller is unreachable, software cannot guarantee the actual fan setting.
 Initialization failures exit so systemd can restart the process after 10 seconds.
+
+## State file
+
+After every sample the service replaces `/run/autofans/state` (`AUTOFANS_STATE`
+overrides the path) with one line of JSON: `time` (Unix seconds),
+`temperature_c`, `pwm` (the commanded percentage), `rpm` and `error`. A value
+it could not read is `null`, and `error` says why; after a failure `pwm` is
+the 100% fallback, or `null` if that command failed too. The file is written
+to a temporary name and renamed, so a reader never sees half of it, and it
+goes when the service stops (systemd removes the runtime directory). A failed
+write is logged once and never stops fan control. underdog's `fans` check
+reads it: an old file means the loop has stopped.
 
 The current installation uses two Noctua 5V fans in an open rack, with the
 sensor on the heatsink case of a fanless firewall. Tune `THRESHOLDS_F`, `SPEEDS`,

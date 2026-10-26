@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 — 2026-10-26
+
+- Write the last sample to `/run/autofans/state` (JSON: time, temperature,
+  commanded PWM, RPM, error) after every reading, atomically, for underdog's
+  `fans` check and the racks dashboard. A failed write is logged once and
+  never stops fan control.
+- No change to the control policy; 3 new tests (16 in all).
+
 ## 1.2.0 — 2026-10-25
 
 - Rebuild for dawg on Debian 13 trixie (arm64, Python 3.13).

@@ -1,3 +1,6 @@
+import json
+import os
+import tempfile
 import unittest
 from unittest.mock import Mock, PropertyMock, patch
 
@@ -119,6 +122,52 @@ class LoggingTests(unittest.TestCase):
         self.assertEqual(reads, 3)
         self.assertTrue(any('RPM read failed' in line for line in logs))
         self.assertEqual(sum('recovered:' in line for line in logs), 1)
+
+
+class StateTests(unittest.TestCase):
+    def run_states(self, temperatures, rpms=None, state_dir=None):
+        """The state file after each sample."""
+        directory = state_dir or tempfile.mkdtemp()
+        path = os.path.join(directory, 'state')
+        controller = Mock()
+        type(controller).fan_speed = PropertyMock(side_effect=rpms, return_value=1000.5)
+        sensor = Mock()
+        type(sensor).temperature = PropertyMock(side_effect=temperatures)
+        states = []
+        def sleep(_):
+            try:
+                with open(path) as f:
+                    states.append(json.load(f))
+            except OSError:
+                states.append(None)
+            if len(states) == len(temperatures):
+                raise StopLoop()
+        with patch.object(autofans, 'LOG') as log, self.assertRaises(StopLoop):
+            autofans.run(controller, lambda: sensor, sleep, state_path=path)
+        return states, log
+
+    def test_each_sample_is_recorded(self):
+        states, _ = self.run_states([22, 28])
+        self.assertEqual([s['pwm'] for s in states], [25, 60])   # 82.4 F
+        self.assertEqual([s['temperature_c'] for s in states], [22, 28])
+        self.assertEqual(states[1]['rpm'], 1000.5)
+        self.assertIsNone(states[1]['error'])
+        self.assertAlmostEqual(states[1]['time'], autofans.time.time(), delta=5)
+
+    def test_failures_are_recorded(self):
+        states, _ = self.run_states([OSError('sensor gone'), 22], [OSError('tach')])
+        self.assertIsNone(states[0]['temperature_c'])
+        self.assertEqual(states[0]['pwm'], 100)
+        self.assertIn('sensor gone', states[0]['error'])
+        self.assertEqual(states[1]['temperature_c'], 22)
+        self.assertIsNone(states[1]['rpm'])
+        self.assertEqual(states[1]['pwm'], 100)     # full speed after the RPM failure
+        self.assertIn('RPM read failed', states[1]['error'])
+
+    def test_unwritable_state_warns_once_and_control_goes_on(self):
+        states, log = self.run_states([22, 22, 22], state_dir='/nonexistent')
+        self.assertEqual(states, [None, None, None])
+        self.assertEqual(sum('state file' in c.args[0] for c in log.warning.call_args_list), 1)
 
 
 if __name__ == '__main__':
