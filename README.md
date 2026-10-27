@@ -51,7 +51,9 @@ reads it: an old file means the loop has stopped.
 
 The current installation uses two Noctua 5V fans in an open rack, with the
 sensor on the heatsink case of a fanless firewall. Tune `THRESHOLDS_F`, `SPEEDS`,
-and `HYSTERESIS_F` in `autofans.py` to suit the sensor location.
+and `HYSTERESIS_F` in `autofans.py` to suit the sensor location. Wiring, the
+known undervoltage issue and the three-fan plan are in
+[HARDWARE.md](HARDWARE.md).
 
 ## Install on dawg
 
